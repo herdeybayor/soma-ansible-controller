@@ -1,0 +1,26 @@
+# Production Environment Inventory
+
+[production_backend]
+prod-backend-1 ansible_host=<PROD_BACKEND_IP> app_type=backend project_name=stock-keeping
+
+[production_frontend]
+prod-frontend-1 ansible_host=<PROD_FRONTEND_IP> app_type=frontend project_name=stock-keeping
+
+[production:children]
+production_backend
+production_frontend
+
+[production:vars]
+environment=production
+app_branch=main
+cloudwatch_enabled=true
+enable_debug_logs=false
+ssl_enabled=true
+aws_region=us-east-1
+domain_prefix=""
+backend_domain=api.stockkeeping.example.com
+frontend_domain=stockkeeping.example.com
+backend_port=5000
+frontend_port=3000
+vault_secrets_path=../secrets
+ansible_user=deploy

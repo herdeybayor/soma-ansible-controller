@@ -1,0 +1,9 @@
+# Environment file for {{ backend_app_name }}
+# Sourced by systemd service
+
+export SERVER_PORT={{ backend_port }}
+export SPRING_PROFILES_ACTIVE={{ environment }}
+export ENVIRONMENT={{ environment }}
+
+# Database from secrets
+export $(cat {{ backend_dir }}/.env | xargs)

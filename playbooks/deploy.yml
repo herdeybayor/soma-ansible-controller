@@ -1,0 +1,211 @@
+---
+- name: "Setup SSH Key from Vault"
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars_files:
+    - ../group_vars/all/vault.yml
+
+  tasks:
+    - name: "Setup | Create SSH directory"
+      file:
+        path: "{{ lookup('env', 'HOME') }}/.ssh"
+        state: directory
+        mode: "0700"
+      register: ssh_dir_created
+
+    - name: "Setup | Write SSH private key from vault"
+      copy:
+        content: "{{ vault_ssh_private_key }}"
+        dest: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
+        mode: "0600"
+      no_log: true
+      register: ssh_key_written
+
+    - name: "Setup | Verify SSH key was written"
+      stat:
+        path: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
+      register: ssh_key_stat
+
+    - name: "Setup | Display SSH key setup status"
+      debug:
+        msg: |
+          ✅ SSH Key Setup Complete
+          SSH Key Location: {{ ssh_key_stat.stat.path }}
+          File Size: {{ ssh_key_stat.stat.size }} bytes
+          Permissions: {{ ssh_key_stat.stat.mode }}
+      when: ssh_key_stat.stat.exists
+
+- name: "Deploy {{ project_name }} - Universal Playbook"
+  hosts: "{{ target_group | default('all') }}"
+  become: true
+
+  vars_files:
+    - ../group_vars/all/vault.yml
+    - ../group_vars/all/common.yml
+
+  vars:
+    environment: "{{ hostvars[inventory_hostname]['environment'] }}"
+    app_type: "{{ hostvars[inventory_hostname]['app_type'] }}"
+    domain_name: "{{ hostvars[inventory_hostname][hostvars[inventory_hostname]['app_type'] + '_domain'] }}"
+
+  pre_tasks:
+    - name: "Deploy | Display deployment information"
+      debug:
+        msg: |
+          ╔════════════════════════════════════════════════════════════════╗
+          ║  {{ project_name }} Deployment                                 ║
+          ║  Environment: {{ environment | upper }}                                  ║
+          ║  Target Host: {{ inventory_hostname }}                            ║
+          ║  App Type: {{ app_type }}                                     ║
+          ║  Domain: {{ domain_name }}                                   ║
+          ║  Branch: {{ app_branch }}                                  ║
+          ╚════════════════════════════════════════════════════════════════╝
+      tags:
+        - always
+
+    - name: "Deploy | Validate environment variables"
+      assert:
+        that:
+          - environment is defined
+          - environment in ['staging', 'production']
+          - app_type is defined
+          - app_type in ['backend', 'frontend']
+        fail_msg: "Invalid environment or app_type configuration"
+      tags:
+        - validate
+
+    - name: "Deploy | Ensure AWS credentials are available"
+      shell: aws sts get-caller-identity
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_secret_access_key }}"
+      register: aws_check
+      failed_when: aws_check.rc != 0
+      tags:
+        - validate
+
+  roles:
+    - role: dependencies
+      tags: [dependencies]
+
+    - role: clone_repo
+      tags: [clone_repo]
+
+    - role: secrets_injection
+      tags: [secrets]
+
+    - role: process_management
+      tags: [process_management]
+
+    - role: nginx_reverse_proxy
+      tags: [nginx]
+
+    - role: ssl_certification
+      tags: [ssl]
+
+    - role: cloudwatch_agent
+      tags: [cloudwatch]
+
+  post_tasks:
+    - name: "Deploy | Wait for application to start"
+      wait_for:
+        port: "{{ backend_port if app_type == 'backend' else frontend_port }}"
+        delay: 5
+        timeout: 60
+      tags:
+        - post_deploy
+        - health_check
+
+    - name: "Deploy | Health check - Backend"
+      uri:
+        url: "https://{{ domain_name }}/actuator/health"
+        method: GET
+        status_code: 200
+        validate_certs: no
+      register: health_check
+      retries: 5
+      delay: 10
+      until: health_check.status == 200
+      when: app_type == 'backend'
+      tags:
+        - post_deploy
+        - health_check
+
+    - name: "Deploy | Health check - Frontend"
+      uri:
+        url: "https://{{ domain_name }}/"
+        method: GET
+        status_code: 200
+        validate_certs: no
+      register: health_check
+      retries: 5
+      delay: 10
+      until: health_check.status == 200
+      when: app_type == 'frontend'
+      tags:
+        - post_deploy
+        - health_check
+
+    - name: "Deploy | Verify CloudWatch logs"
+      shell: |
+        aws logs describe-log-streams \
+          --log-group-name "/ec2/{{ environment }}/{{ project_name }}/{{ app_type }}" \
+          --region {{ aws_region }} \
+          --query 'logStreams[].logStreamName' \
+          --output text
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_secret_access_key }}"
+      register: cloudwatch_logs
+      failed_when: cloudwatch_logs.stdout == ''
+      tags:
+        - post_deploy
+        - cloudwatch_verify
+
+    - name: "Deploy | Display deployment summary"
+      debug:
+        msg: |
+          ╔════════════════════════════════════════════════════════════════╗
+          ║  ✅ Deployment Successful                                       ║
+          ║  Environment: {{ environment | upper }}                          ║
+          ║  Application: {{ project_name }} ({{ app_type }})               ║
+          ║  Domain: {{ domain_name }}                                     ║
+          ║  Access: https://{{ domain_name }}                             ║
+          ║  CloudWatch Logs: /ec2/{{ environment }}/{{ project_name }}/{{ app_type }} ║
+          ║  Logs: {{ cloudwatch_logs.stdout | default('Pending...') }}    ║
+          ╚════════════════════════════════════════════════════════════════╝
+      tags:
+        - post_deploy
+        - summary
+
+    - name: "Deploy | Cleanup SSH key from localhost"
+      file:
+        path: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
+        state: absent
+      delegate_to: localhost
+      become: false
+      tags:
+        - post_deploy
+        - cleanup
+
+  handlers:
+    - name: "systemd daemon reload"
+      systemd:
+        daemon_reload: yes
+
+    - name: "reload nginx"
+      systemd:
+        name: nginx
+        state: reloaded
+
+    - name: "restart cloudwatch agent"
+      shell: |
+        /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+          -a stop && \
+        /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+          -a fetch-config \
+          -m ec2 \
+          -s \
+          -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json

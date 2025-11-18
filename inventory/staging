@@ -1,0 +1,26 @@
+# Staging Environment Inventory
+
+[staging_backend]
+staging-backend-1 ansible_host=44.201.36.86 app_type=backend project_name=stock-keeping
+
+[staging_frontend]
+staging-frontend-1 ansible_host=44.222.183.250 app_type=frontend project_name=stock-keeping
+
+[staging:children]
+staging_backend
+staging_frontend
+
+[staging:vars]
+environment=staging
+app_branch=develop
+cloudwatch_enabled=true
+enable_debug_logs=true
+ssl_enabled=true
+aws_region=us-east-1
+domain_prefix=staging
+backend_domain=api-staging.stockkeeping.example.com
+frontend_domain=staging.stockkeeping.example.com
+backend_port=5000
+frontend_port=3000
+vault_secrets_path=../secrets
+ansible_user=ubuntu

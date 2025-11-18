@@ -1,0 +1,54 @@
+---
+- name: "Nginx | Generate Nginx configuration"
+  template:
+    src: nginx.conf.j2
+    dest: "/etc/nginx/sites-available/{{ domain_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload nginx
+  tags:
+    - nginx
+    - reverse_proxy
+
+- name: "Nginx | Enable site"
+  file:
+    src: "/etc/nginx/sites-available/{{ domain_name }}"
+    dest: "/etc/nginx/sites-enabled/{{ domain_name }}"
+    state: link
+  notify: reload nginx
+  tags:
+    - nginx
+    - reverse_proxy
+
+- name: "Nginx | Remove default site"
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: reload nginx
+  tags:
+    - nginx
+    - reverse_proxy
+
+- name: "Nginx | Test Nginx configuration"
+  shell: nginx -t
+  register: nginx_test
+  failed_when: nginx_test.rc != 0
+  tags:
+    - nginx
+    - reverse_proxy
+    - test
+
+- name: "Nginx | Enable Nginx service"
+  systemd:
+    name: nginx
+    enabled: yes
+    state: started
+  tags:
+    - nginx
+    - reverse_proxy
+
+- name: "Nginx | Flush handlers"
+  meta: flush_handlers
+  tags:
+    - nginx

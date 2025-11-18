@@ -1,0 +1,36 @@
+---
+# Production Environment Variables
+
+environment: production
+app_branch: main
+enable_debug_logs: false
+cloudwatch_enabled: true
+ssl_enabled: true
+
+# AWS Configuration
+aws_region: us-east-1
+aws_cloudwatch_log_retention: 30 # 30 days for production
+
+# Domains
+domain_name: stockkeeping.example.com
+backend_domain: api.stockkeeping.example.com
+frontend_domain: stockkeeping.example.com
+
+# Application ports
+backend_port: 5000
+frontend_port: 3000
+
+# Certbot configuration
+certbot_email: devops@stockkeeping.example.com
+
+# PM2 configuration
+pm2_max_memory_restart: 1024
+pm2_instances: 4
+
+# Database configuration
+db_max_connections: 50
+db_pool_size: 25
+
+# Nginx configuration
+nginx_worker_processes: auto
+nginx_worker_connections: 2048

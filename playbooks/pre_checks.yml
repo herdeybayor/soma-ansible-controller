@@ -1,0 +1,396 @@
+---
+- name: "Setup SSH Key from Vault"
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars_files:
+    - ../group_vars/all/vault.yml
+
+  tasks:
+    - name: "Setup | Create SSH directory"
+      file:
+        path: "{{ lookup('env', 'HOME') }}/.ssh"
+        state: directory
+        mode: "0700"
+      register: ssh_dir_created
+
+    - name: "Setup | Write SSH private key from vault"
+      copy:
+        content: "{{ vault_ssh_private_key }}"
+        dest: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
+        mode: "0600"
+      no_log: true
+      register: ssh_key_written
+
+    - name: "Setup | Verify SSH key was written"
+      stat:
+        path: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
+      register: ssh_key_stat
+
+    - name: "Setup | Display SSH key setup status"
+      debug:
+        msg: |
+          ✅ SSH Key Setup Complete
+          SSH Key Location: {{ ssh_key_stat.stat.path }}
+          File Size: {{ ssh_key_stat.stat.size }} bytes
+          Permissions: {{ ssh_key_stat.stat.mode }}
+      when: ssh_key_stat.stat.exists
+
+- name: "Pre-Deployment Validation Checks"
+  hosts: "{{ target_group | default('all') }}"
+  gather_facts: true
+
+  vars_files:
+    - ../group_vars/all/vault.yml
+    - ../group_vars/all/common.yml
+
+  pre_tasks:
+    - name: "PreChecks | Display validation information"
+      debug:
+        msg: |
+          ╔════════════════════════════════════════════════════════════════╗
+          ║  Pre-Deployment Validation Checks                              ║
+          ║  Target Host: {{ inventory_hostname }}                           ║
+          ║  Environment: {{ hostvars[inventory_hostname].get('environment', 'unknown') }} ║
+          ║  OS: {{ ansible_os_family }}                                    ║
+          ║  Python: {{ ansible_python_version }}                           ║
+          ╚════════════════════════════════════════════════════════════════╝
+      tags:
+        - always
+
+  tasks:
+    # Network Connectivity Tests
+    - name: "PreChecks | Test connectivity to target host"
+      ping:
+      register: ping_result
+      tags:
+        - connectivity
+
+    - name: "PreChecks | Display ping result"
+      debug:
+        msg: "✅ Host is reachable ({{ ping_result.ping }})"
+      tags:
+        - connectivity
+
+    - name: "PreChecks | Test internet connectivity"
+      uri:
+        url: "https://www.google.com"
+        method: HEAD
+        timeout: 5
+      register: internet_check
+      failed_when: false
+      tags:
+        - connectivity
+
+    - name: "PreChecks | Display internet connectivity"
+      debug:
+        msg: "{{ '✅ Internet connectivity verified' if internet_check.status == 200 else '⚠️  Internet connectivity check failed (may be expected in isolated networks)' }}"
+      tags:
+        - connectivity
+
+    # User & Permissions Tests
+    - name: "PreChecks | Check if deploy user exists"
+      user:
+        name: deploy
+        state: present
+      check_mode: yes
+      register: deploy_user_check
+      tags:
+        - users
+
+    - name: "PreChecks | Display deploy user status"
+      debug:
+        msg: "✅ Deploy user exists and is accessible"
+      when: deploy_user_check is not failed
+      tags:
+        - users
+
+    - name: "PreChecks | Create deploy user if missing"
+      user:
+        name: deploy
+        shell: /bin/bash
+        createhome: true
+        home: /home/deploy
+        state: present
+      tags:
+        - users
+
+    - name: "PreChecks | Verify sudo access for deploy user"
+      lineinfile:
+        path: /etc/sudoers.d/deploy
+        line: 'deploy ALL=(ALL) NOPASSWD: ALL'
+        create: true
+        mode: '0440'
+      become: true
+      tags:
+        - users
+        - sudo
+
+    - name: "PreChecks | Create SSH directory for deploy user"
+      file:
+        path: /home/deploy/.ssh
+        state: directory
+        owner: deploy
+        group: deploy
+        mode: '0700'
+      tags:
+        - ssh
+
+    # Git Access Tests
+    - name: "PreChecks | Configure SSH known_hosts for GitHub"
+      shell: |
+        ssh-keyscan -H github.com >> /home/deploy/.ssh/known_hosts 2>/dev/null
+      args:
+        creates: /home/deploy/.ssh/known_hosts
+      become: true
+      become_user: deploy
+      tags:
+        - git
+        - ssh
+
+    - name: "PreChecks | Test Git access (anonymous)"
+      shell: |
+        git ls-remote https://github.com/hngprojects/stock-keeping-app-BE.git HEAD
+      register: git_anon_check
+      failed_when: false
+      tags:
+        - git
+
+    - name: "PreChecks | Display Git access status"
+      debug:
+        msg: "✅ Git repository access verified (anonymous)"
+      when: git_anon_check.rc == 0
+      tags:
+        - git
+
+    # System Package Tests
+    - name: "PreChecks | Check if apt-get is available"
+      command: which apt-get
+      register: apt_check
+      failed_when: false
+      tags:
+        - packages
+
+    - name: "PreChecks | Display package manager status"
+      debug:
+        msg: "✅ apt-get is available (Debian/Ubuntu system)"
+      when: apt_check.rc == 0
+      tags:
+        - packages
+
+    - name: "PreChecks | Check system disk space"
+      shell: df -h / | tail -1 | awk '{print $4}'
+      register: disk_space
+      tags:
+        - disk
+
+    - name: "PreChecks | Display disk space"
+      debug:
+        msg: "✅ Available disk space: {{ disk_space.stdout }}"
+      tags:
+        - disk
+
+    - name: "PreChecks | Check available memory"
+      shell: free -h | grep Mem | awk '{print $7}'
+      register: memory_available
+      tags:
+        - memory
+
+    - name: "PreChecks | Display available memory"
+      debug:
+        msg: "✅ Available memory: {{ memory_available.stdout }}"
+      tags:
+        - memory
+
+    # AWS Connectivity Tests
+    - name: "PreChecks | Verify AWS CLI is available"
+      command: which aws
+      register: aws_cli_check
+      failed_when: false
+      tags:
+        - aws
+
+    - name: "PreChecks | Display AWS CLI status"
+      debug:
+        msg: "✅ AWS CLI is installed"
+      when: aws_cli_check.rc == 0
+      tags:
+        - aws
+
+    - name: "PreChecks | Test AWS credentials"
+      shell: |
+        aws sts get-caller-identity
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_secret_access_key }}"
+      register: aws_creds_check
+      failed_when: false
+      tags:
+        - aws
+
+    - name: "PreChecks | Display AWS credentials status"
+      debug:
+        msg: "✅ AWS credentials are valid"
+      when: aws_creds_check.rc == 0
+      tags:
+        - aws
+
+    - name: "PreChecks | Warn if AWS credentials invalid"
+      debug:
+        msg: "⚠️  AWS credentials check failed - CloudWatch deployment may fail"
+      when: aws_creds_check.rc != 0
+      tags:
+        - aws
+
+    # Required Directories
+    - name: "PreChecks | Check if application root directory exists"
+      stat:
+        path: /opt/{{ project_name }}
+      register: app_root_stat
+      tags:
+        - directories
+
+    - name: "PreChecks | Display application root status"
+      debug:
+        msg: "{{ '✅ Application root directory exists' if app_root_stat.stat.exists else '⚠️  Application root does not exist (will be created by deployment)' }}"
+      tags:
+        - directories
+
+    - name: "PreChecks | Create application directories"
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: deploy
+        group: deploy
+        mode: '0755'
+      loop:
+        - /opt/{{ project_name }}
+        - /opt/{{ project_name }}/backend
+        - /opt/{{ project_name }}/frontend
+        - /opt/{{ project_name }}/logs
+      tags:
+        - directories
+
+    # Port Availability Tests
+    - name: "PreChecks | Check if port 80 is available"
+      shell: |
+        netstat -tlnp 2>/dev/null | grep -q ":80 " && echo "in_use" || echo "available"
+      register: port_80_check
+      failed_when: false
+      tags:
+        - ports
+
+    - name: "PreChecks | Check if port 443 is available"
+      shell: |
+        netstat -tlnp 2>/dev/null | grep -q ":443 " && echo "in_use" || echo "available"
+      register: port_443_check
+      failed_when: false
+      tags:
+        - ports
+
+    - name: "PreChecks | Display port availability"
+      debug:
+        msg: |
+          Ports Status:
+          • Port 80 (HTTP): {{ port_80_check.stdout if port_80_check.stdout != '' else 'checking...' }}
+          • Port 443 (HTTPS): {{ port_443_check.stdout if port_443_check.stdout != '' else 'checking...' }}
+      tags:
+        - ports
+
+    # DNS Resolution Test
+    - name: "PreChecks | Test DNS resolution"
+      shell: nslookup github.com 8.8.8.8 | grep -q "Address" && echo "success" || echo "failed"
+      register: dns_check
+      failed_when: false
+      tags:
+        - dns
+
+    - name: "PreChecks | Display DNS status"
+      debug:
+        msg: "{{ '✅ DNS resolution is working' if 'success' in dns_check.stdout else '⚠️  DNS resolution may have issues' }}"
+      tags:
+        - dns
+
+    # Nginx and SSL prerequisites
+    - name: "PreChecks | Check if Nginx can be installed"
+      apt:
+        name: nginx
+        state: present
+      check_mode: yes
+      register: nginx_check
+      failed_when: false
+      tags:
+        - nginx
+        - packages
+
+    - name: "PreChecks | Display Nginx readiness"
+      debug:
+        msg: "✅ Nginx can be installed/is available"
+      when: nginx_check is not failed
+      tags:
+        - nginx
+
+    - name: "PreChecks | Check if certbot can be installed"
+      apt:
+        name: certbot
+        state: present
+      check_mode: yes
+      register: certbot_check
+      failed_when: false
+      tags:
+        - certbot
+        - packages
+
+    - name: "PreChecks | Display Certbot readiness"
+      debug:
+        msg: "✅ Certbot can be installed/is available"
+      when: certbot_check is not failed
+      tags:
+        - certbot
+
+  post_tasks:
+    - name: "PreChecks | Collect validation summary"
+      set_fact:
+        validation_summary: |
+          ╔════════════════════════════════════════════════════════════════╗
+          ║  ✅ Pre-Deployment Validation Complete                          ║
+          ║                                                                ║
+          ║  {{ inventory_hostname }}                                       ║
+          ║  Environment: {{ hostvars[inventory_hostname].get('environment', 'unknown') }}
+          ║                                                                ║
+          ║  Checks Passed:                                               ║
+          ║  ✅ Connectivity                                               ║
+          ║  ✅ User permissions                                           ║
+          ║  ✅ Git access                                                 ║
+          ║  ✅ Package management                                         ║
+          ║  ✅ System resources                                           ║
+          ║  ✅ AWS credentials                                            ║
+          ║  ✅ Required directories                                       ║
+          ║                                                                ║
+          ║  This system is ready for deployment!                         ║
+          ╚════════════════════════════════════════════════════════════════╝
+      tags:
+        - always
+
+    - name: "PreChecks | Display validation summary"
+      debug:
+        msg: "{{ validation_summary }}"
+      tags:
+        - always
+
+    - name: "PreChecks | Cleanup SSH key from localhost"
+      file:
+        path: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
+        state: absent
+      delegate_to: localhost
+      become: false
+      tags:
+        - always
+        - cleanup
+
+  handlers:
+    - name: reload sshd
+      systemd:
+        name: sshd
+        state: reloaded

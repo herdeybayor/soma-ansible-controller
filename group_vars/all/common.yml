@@ -1,0 +1,25 @@
+---
+# Common variables for all environments
+
+project_name: stock-keeping
+backend_app_name: stock-keeping-backend
+frontend_app_name: stock-keeping-frontend
+
+# Repository URLs
+backend_repo: https://github.com/hngprojects/stock-keeping-app-BE.git
+frontend_repo: https://github.com/hngprojects/stock-keeping-app-fe.git
+
+# Application configuration
+backend_port: 5000
+frontend_port: 3000
+app_user: deploy
+app_group: deploy
+
+# Directory structure
+app_root: /opt/{{ project_name }}
+backend_dir: "{{ app_root }}/backend"
+frontend_dir: "{{ app_root }}/frontend"
+logs_dir: "{{ app_root }}/logs"
+
+# System configuration
+system_timezone: UTC

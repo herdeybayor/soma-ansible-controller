@@ -1,0 +1,135 @@
+---
+# Frontend Process Management (PM2)
+- name: "Process Mgmt | Generate PM2 ecosystem config (Frontend)"
+  template:
+    src: pm2-ecosystem.j2
+    dest: "{{ frontend_dir }}/ecosystem.config.js"
+    owner: deploy
+    group: deploy
+    mode: "0644"
+  when: app_type == 'frontend' or app_type == 'both'
+  tags:
+    - process_management
+    - pm2
+    - frontend
+
+- name: "Process Mgmt | Install frontend dependencies"
+  shell: |
+    cd {{ frontend_dir }}
+    npm ci
+  become: true
+  become_user: deploy
+  when: app_type == 'frontend' or app_type == 'both'
+  tags:
+    - process_management
+    - npm
+    - frontend
+
+- name: "Process Mgmt | Build frontend application"
+  shell: |
+    cd {{ frontend_dir }}
+    source .env.local 2>/dev/null || true
+    npm run build
+  become: true
+  become_user: deploy
+  when: app_type == 'frontend' or app_type == 'both'
+  tags:
+    - process_management
+    - build
+    - frontend
+
+- name: "Process Mgmt | Start frontend with PM2"
+  shell: |
+    cd {{ frontend_dir }}
+    pm2 delete stock-keeping-frontend || true
+    pm2 start ecosystem.config.js --env {{ environment }}
+    pm2 save
+  become: true
+  become_user: deploy
+  when: app_type == 'frontend' or app_type == 'both'
+  register: pm2_start
+  tags:
+    - process_management
+    - pm2
+    - frontend
+
+- name: "Process Mgmt | Setup PM2 startup service"
+  shell: |
+    pm2 startup systemd -u deploy --hp /home/deploy
+    systemctl enable pm2-deploy
+  become: true
+  when: app_type == 'frontend' or app_type == 'both'
+  tags:
+    - process_management
+    - pm2
+    - frontend
+
+# Backend Process Management (SystemD)
+- name: "Process Mgmt | Generate SystemD environment file (Backend)"
+  template:
+    src: systemd-env.j2
+    dest: /etc/default/{{ backend_app_name }}
+    owner: root
+    group: root
+    mode: "0644"
+  when: app_type == 'backend' or app_type == 'both'
+  tags:
+    - process_management
+    - systemd
+    - backend
+
+- name: "Process Mgmt | Generate SystemD service file (Backend)"
+  template:
+    src: systemd.service.j2
+    dest: "/etc/systemd/system/{{ backend_app_name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  when: app_type == 'backend' or app_type == 'both'
+  notify: systemd daemon reload
+  tags:
+    - process_management
+    - systemd
+    - backend
+
+- name: "Process Mgmt | Build backend application"
+  shell: |
+    cd {{ backend_dir }}
+    mvn clean package -DskipTests -q
+    cp target/stockkeeper-*.jar {{ backend_dir }}/app.jar
+  become: true
+  become_user: deploy
+  when: app_type == 'backend' or app_type == 'both'
+  register: build_backend
+  tags:
+    - process_management
+    - build
+    - backend
+
+- name: "Process Mgmt | Fix jar permissions"
+  file:
+    path: "{{ backend_dir }}/app.jar"
+    owner: deploy
+    group: deploy
+    mode: "0755"
+  when: app_type == 'backend' or app_type == 'both'
+  tags:
+    - process_management
+    - backend
+
+- name: "Process Mgmt | Enable and start backend service"
+  systemd:
+    name: "{{ backend_app_name }}"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: app_type == 'backend' or app_type == 'both'
+  tags:
+    - process_management
+    - systemd
+    - backend
+
+- name: Flush handlers
+  meta: flush_handlers
+  tags:
+    - process_management

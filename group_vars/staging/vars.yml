@@ -1,0 +1,36 @@
+---
+# Staging Environment Variables
+
+environment: staging
+app_branch: develop
+enable_debug_logs: true
+cloudwatch_enabled: true
+ssl_enabled: true
+
+# AWS Configuration
+aws_region: us-east-1
+aws_cloudwatch_log_retention: 7 # 7 days for staging
+
+# Domains
+domain_name: staging.stockkeeping.example.com
+backend_domain: api-staging.stockkeeping.example.com
+frontend_domain: staging.stockkeeping.example.com
+
+# Application ports
+backend_port: 5000
+frontend_port: 3000
+
+# Certbot configuration
+certbot_email: devops@staging.stockkeeping.example.com
+
+# PM2 configuration
+pm2_max_memory_restart: 512
+pm2_instances: 2
+
+# Database configuration
+db_max_connections: 20
+db_pool_size: 10
+
+# Nginx configuration
+nginx_worker_processes: auto
+nginx_worker_connections: 1024
