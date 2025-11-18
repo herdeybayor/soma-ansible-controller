@@ -1,0 +1,28 @@
+# Encrypted vault password file
+.vault-password
+.vault-password-file
+
+# Secrets directory (local environment files)
+secrets/
+!secrets/.gitkeep
+
+# SSH keys directory
+ssh_keys/
+!ssh_keys/.gitkeep
+
+# Local development files
+*.swp
+*.swo
+*~
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Ansible logs
+ansible.log
+
+# Environment-specific files
+inventory/local
