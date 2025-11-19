@@ -1,7 +1,7 @@
 ---
 - name: "Secrets | Copy environment file to backend"
   copy:
-    src: "{{ vault_secrets_path }}/{{ environment }}.env"
+    src: "{{ vault_secrets_path }}/{{ deploy_env }}-backend.env"
     dest: "{{ backend_dir }}/.env"
     owner: deploy
     group: deploy
@@ -13,7 +13,7 @@
 
 - name: "Secrets | Copy environment file to frontend"
   copy:
-    src: "{{ vault_secrets_path }}/{{ environment }}.env"
+    src: "{{ vault_secrets_path }}/{{ deploy_env }}-frontend.env"
     dest: "{{ frontend_dir }}/.env.local"
     owner: deploy
     group: deploy

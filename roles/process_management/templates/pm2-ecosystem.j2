@@ -18,7 +18,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: "{{ pm2_max_memory_restart }}M",
-      env_{{ environment }}: {
+      env_{{ deploy_env }}: {
         NODE_ENV: "production",
       },
     },

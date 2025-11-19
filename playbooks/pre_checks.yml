@@ -1,42 +1,4 @@
 ---
-- name: "Setup SSH Key from Vault"
-  hosts: localhost
-  gather_facts: false
-  become: false
-
-  vars_files:
-    - ../group_vars/all/vault.yml
-
-  tasks:
-    - name: "Setup | Create SSH directory"
-      file:
-        path: "{{ lookup('env', 'HOME') }}/.ssh"
-        state: directory
-        mode: "0700"
-      register: ssh_dir_created
-
-    - name: "Setup | Write SSH private key from vault"
-      copy:
-        content: "{{ vault_ssh_private_key }}"
-        dest: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
-        mode: "0600"
-      no_log: true
-      register: ssh_key_written
-
-    - name: "Setup | Verify SSH key was written"
-      stat:
-        path: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
-      register: ssh_key_stat
-
-    - name: "Setup | Display SSH key setup status"
-      debug:
-        msg: |
-          ✅ SSH Key Setup Complete
-          SSH Key Location: {{ ssh_key_stat.stat.path }}
-          File Size: {{ ssh_key_stat.stat.size }} bytes
-          Permissions: {{ ssh_key_stat.stat.mode }}
-      when: ssh_key_stat.stat.exists
-
 - name: "Pre-Deployment Validation Checks"
   hosts: "{{ target_group | default('all') }}"
   gather_facts: true
@@ -52,7 +14,7 @@
           ╔════════════════════════════════════════════════════════════════╗
           ║  Pre-Deployment Validation Checks                              ║
           ║  Target Host: {{ inventory_hostname }}                           ║
-          ║  Environment: {{ hostvars[inventory_hostname].get('environment', 'unknown') }} ║
+          ║  Environment: {{ hostvars[inventory_hostname].get('deploy_env', 'unknown') }} ║
           ║  OS: {{ ansible_os_family }}                                    ║
           ║  Python: {{ ansible_python_version }}                           ║
           ╚════════════════════════════════════════════════════════════════╝
@@ -119,9 +81,9 @@
     - name: "PreChecks | Verify sudo access for deploy user"
       lineinfile:
         path: /etc/sudoers.d/deploy
-        line: 'deploy ALL=(ALL) NOPASSWD: ALL'
+        line: "deploy ALL=(ALL) NOPASSWD: ALL"
         create: true
-        mode: '0440'
+        mode: "0440"
       become: true
       tags:
         - users
@@ -133,7 +95,7 @@
         state: directory
         owner: deploy
         group: deploy
-        mode: '0700'
+        mode: "0700"
       tags:
         - ssh
 
@@ -263,7 +225,7 @@
         state: directory
         owner: deploy
         group: deploy
-        mode: '0755'
+        mode: "0755"
       loop:
         - /opt/{{ project_name }}
         - /opt/{{ project_name }}/backend
@@ -357,7 +319,7 @@
           ║  ✅ Pre-Deployment Validation Complete                          ║
           ║                                                                ║
           ║  {{ inventory_hostname }}                                       ║
-          ║  Environment: {{ hostvars[inventory_hostname].get('environment', 'unknown') }}
+          ║  Environment: {{ hostvars[inventory_hostname].get('deploy_env', 'unknown') }}
           ║                                                                ║
           ║  Checks Passed:                                               ║
           ║  ✅ Connectivity                                               ║
@@ -378,16 +340,6 @@
         msg: "{{ validation_summary }}"
       tags:
         - always
-
-    - name: "PreChecks | Cleanup SSH key from localhost"
-      file:
-        path: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
-        state: absent
-      delegate_to: localhost
-      become: false
-      tags:
-        - always
-        - cleanup
 
   handlers:
     - name: reload sshd

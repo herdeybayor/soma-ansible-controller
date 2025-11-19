@@ -11,7 +11,7 @@ staging_backend
 staging_frontend
 
 [staging:vars]
-environment=staging
+deploy_env=staging
 app_branch=develop
 cloudwatch_enabled=true
 enable_debug_logs=true

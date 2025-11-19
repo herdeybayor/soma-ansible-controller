@@ -11,7 +11,7 @@ production_backend
 production_frontend
 
 [production:vars]
-environment=production
+deploy_env=production
 app_branch=main
 cloudwatch_enabled=true
 enable_debug_logs=false

@@ -1,42 +1,4 @@
 ---
-- name: "Setup SSH Key from Vault"
-  hosts: localhost
-  gather_facts: false
-  become: false
-
-  vars_files:
-    - ../group_vars/all/vault.yml
-
-  tasks:
-    - name: "Setup | Create SSH directory"
-      file:
-        path: "{{ lookup('env', 'HOME') }}/.ssh"
-        state: directory
-        mode: "0700"
-      register: ssh_dir_created
-
-    - name: "Setup | Write SSH private key from vault"
-      copy:
-        content: "{{ vault_ssh_private_key }}"
-        dest: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
-        mode: "0600"
-      no_log: true
-      register: ssh_key_written
-
-    - name: "Setup | Verify SSH key was written"
-      stat:
-        path: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
-      register: ssh_key_stat
-
-    - name: "Setup | Display SSH key setup status"
-      debug:
-        msg: |
-          ✅ SSH Key Setup Complete
-          SSH Key Location: {{ ssh_key_stat.stat.path }}
-          File Size: {{ ssh_key_stat.stat.size }} bytes
-          Permissions: {{ ssh_key_stat.stat.mode }}
-      when: ssh_key_stat.stat.exists
-
 - name: "Deploy {{ project_name }} - Universal Playbook"
   hosts: "{{ target_group | default('all') }}"
   become: true
@@ -46,7 +8,7 @@
     - ../group_vars/all/common.yml
 
   vars:
-    environment: "{{ hostvars[inventory_hostname]['environment'] }}"
+    deploy_env: "{{ hostvars[inventory_hostname]['deploy_env'] }}"
     app_type: "{{ hostvars[inventory_hostname]['app_type'] }}"
     domain_name: "{{ hostvars[inventory_hostname][hostvars[inventory_hostname]['app_type'] + '_domain'] }}"
 
@@ -56,7 +18,7 @@
         msg: |
           ╔════════════════════════════════════════════════════════════════╗
           ║  {{ project_name }} Deployment                                 ║
-          ║  Environment: {{ environment | upper }}                                  ║
+          ║  Environment: {{ deploy_env | upper }}                                  ║
           ║  Target Host: {{ inventory_hostname }}                            ║
           ║  App Type: {{ app_type }}                                     ║
           ║  Domain: {{ domain_name }}                                   ║
@@ -68,8 +30,8 @@
     - name: "Deploy | Validate environment variables"
       assert:
         that:
-          - environment is defined
-          - environment in ['staging', 'production']
+          - deploy_env is defined
+          - deploy_env in ['staging', 'production']
           - app_type is defined
           - app_type in ['backend', 'frontend']
         fail_msg: "Invalid environment or app_type configuration"
@@ -85,6 +47,8 @@
       failed_when: aws_check.rc != 0
       tags:
         - validate
+        - cloudwatch
+      when: cloudwatch_enabled | default(false)
 
   roles:
     - role: dependencies
@@ -151,7 +115,7 @@
     - name: "Deploy | Verify CloudWatch logs"
       shell: |
         aws logs describe-log-streams \
-          --log-group-name "/ec2/{{ environment }}/{{ project_name }}/{{ app_type }}" \
+          --log-group-name "/ec2/{{ deploy_env }}/{{ project_name }}/{{ app_type }}" \
           --region {{ aws_region }} \
           --query 'logStreams[].logStreamName' \
           --output text
@@ -169,26 +133,16 @@
         msg: |
           ╔════════════════════════════════════════════════════════════════╗
           ║  ✅ Deployment Successful                                       ║
-          ║  Environment: {{ environment | upper }}                          ║
+          ║  Environment: {{ deploy_env | upper }}                          ║
           ║  Application: {{ project_name }} ({{ app_type }})               ║
           ║  Domain: {{ domain_name }}                                     ║
           ║  Access: https://{{ domain_name }}                             ║
-          ║  CloudWatch Logs: /ec2/{{ environment }}/{{ project_name }}/{{ app_type }} ║
+          ║  CloudWatch Logs: /ec2/{{ deploy_env }}/{{ project_name }}/{{ app_type }} ║
           ║  Logs: {{ cloudwatch_logs.stdout | default('Pending...') }}    ║
           ╚════════════════════════════════════════════════════════════════╝
       tags:
         - post_deploy
         - summary
-
-    - name: "Deploy | Cleanup SSH key from localhost"
-      file:
-        path: "{{ lookup('env', 'HOME') }}/.ssh/deploy_key"
-        state: absent
-      delegate_to: localhost
-      become: false
-      tags:
-        - post_deploy
-        - cleanup
 
   handlers:
     - name: "systemd daemon reload"

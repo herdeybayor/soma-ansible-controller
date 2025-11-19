@@ -9,28 +9,28 @@
         "collect_list": [
           {
             "file_path": "{{ logs_dir }}/{{ app_type }}-out.log",
-            "log_group_name": "/ec2/{{ environment }}/{{ project_name }}/{{ app_type }}",
+            "log_group_name": "/ec2/{{ deploy_env }}/{{ project_name }}/{{ app_type }}",
             "log_stream_name": "{instance_id}-stdout",
             "timezone": "UTC",
             "timestamp_format": "%b %d %H:%M:%S"
           },
           {
             "file_path": "{{ logs_dir }}/{{ app_type }}-error.log",
-            "log_group_name": "/ec2/{{ environment }}/{{ project_name }}/{{ app_type }}",
+            "log_group_name": "/ec2/{{ deploy_env }}/{{ project_name }}/{{ app_type }}",
             "log_stream_name": "{instance_id}-stderr",
             "timezone": "UTC",
             "timestamp_format": "%b %d %H:%M:%S"
           },
           {
             "file_path": "/var/log/nginx/{{ domain_name }}-access.log",
-            "log_group_name": "/ec2/{{ environment }}/{{ project_name }}/nginx",
+            "log_group_name": "/ec2/{{ deploy_env }}/{{ project_name }}/nginx",
             "log_stream_name": "{instance_id}-access",
             "timezone": "UTC",
             "timestamp_format": "%d/%b/%Y:%H:%M:%S %z"
           },
           {
             "file_path": "/var/log/nginx/{{ domain_name }}-error.log",
-            "log_group_name": "/ec2/{{ environment }}/{{ project_name }}/nginx",
+            "log_group_name": "/ec2/{{ deploy_env }}/{{ project_name }}/nginx",
             "log_stream_name": "{instance_id}-error",
             "timezone": "UTC",
             "timestamp_format": "%Y/%m/%d %H:%M:%S"

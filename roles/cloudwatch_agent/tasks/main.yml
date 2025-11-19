@@ -26,7 +26,7 @@
 - name: "CloudWatch | Create log groups"
   shell: |
     aws logs create-log-group \
-      --log-group-name "/ec2/{{ environment }}/{{ project_name }}/{{ app_type }}" \
+      --log-group-name "/ec2/{{ deploy_env }}/{{ project_name }}/{{ app_type }}" \
       --region {{ aws_region }} \
       2>/dev/null || true
   environment:
@@ -39,7 +39,7 @@
 - name: "CloudWatch | Set log retention policy"
   shell: |
     aws logs put-retention-policy \
-      --log-group-name "/ec2/{{ environment }}/{{ project_name }}/{{ app_type }}" \
+      --log-group-name "/ec2/{{ deploy_env }}/{{ project_name }}/{{ app_type }}" \
       --retention-in-days {{ aws_cloudwatch_log_retention }} \
       --region {{ aws_region }}
   environment:
@@ -68,7 +68,7 @@
 - name: "CloudWatch | Verify logs are streaming"
   shell: |
     aws logs describe-log-streams \
-      --log-group-name "/ec2/{{ environment }}/{{ project_name }}/{{ app_type }}" \
+      --log-group-name "/ec2/{{ deploy_env }}/{{ project_name }}/{{ app_type }}" \
       --region {{ aws_region }} \
       --query 'logStreams[0].logStreamName' \
       --output text

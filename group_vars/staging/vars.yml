@@ -1,7 +1,7 @@
 ---
 # Staging Environment Variables
 
-environment: staging
+deploy_env: staging
 app_branch: develop
 enable_debug_logs: true
 cloudwatch_enabled: true

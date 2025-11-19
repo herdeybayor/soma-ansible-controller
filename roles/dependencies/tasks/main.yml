@@ -26,11 +26,26 @@
     - python3-venv
     - supervisor
     - ntp
-    - awscli
+    - unzip
     - jq
   tags:
     - dependencies
     - packages
+
+- name: "Dependencies | Install AWS CLI v2"
+  shell: |
+    cd /tmp
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip -o awscliv2.zip
+    ./aws/install --update
+    rm -rf awscliv2.zip aws/
+  args:
+    creates: /usr/local/bin/aws
+  when: cloudwatch_enabled | default(false)
+  tags:
+    - dependencies
+    - awscli
+    - cloudwatch
 
 - name: "Dependencies | Install AWS CloudWatch Agent"
   shell: |

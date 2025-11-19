@@ -2,8 +2,8 @@
 # Sourced by systemd service
 
 export SERVER_PORT={{ backend_port }}
-export SPRING_PROFILES_ACTIVE={{ environment }}
-export ENVIRONMENT={{ environment }}
+export SPRING_PROFILES_ACTIVE={{ deploy_env }}
+export ENVIRONMENT={{ deploy_env }}
 
 # Database from secrets
 export $(cat {{ backend_dir }}/.env | xargs)

@@ -1,7 +1,7 @@
 ---
 # Production Environment Variables
 
-environment: production
+deploy_env: production
 app_branch: main
 enable_debug_logs: false
 cloudwatch_enabled: true
