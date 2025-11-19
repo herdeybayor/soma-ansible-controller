@@ -1,4 +1,30 @@
 ---
+- name: "Nginx | Create certbot challenge directory"
+  file:
+    path: /var/www/certbot
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+  tags:
+    - nginx
+    - reverse_proxy
+
+- name: "Nginx | Check if SSL certificates exist"
+  stat:
+    path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+  register: ssl_cert_file
+  tags:
+    - nginx
+    - reverse_proxy
+
+- name: "Nginx | Set SSL certificate status"
+  set_fact:
+    ssl_cert_exists: "{{ ssl_cert_file.stat.exists | default(false) }}"
+  tags:
+    - nginx
+    - reverse_proxy
+
 - name: "Nginx | Generate Nginx configuration"
   template:
     src: nginx.conf.j2

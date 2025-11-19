@@ -65,13 +65,15 @@
     - frontend
 
 # Backend Process Management (SystemD)
-- name: "Process Mgmt | Generate SystemD environment file (Backend)"
-  template:
-    src: systemd-env.j2
+- name: "Process Mgmt | Copy backend .env as SystemD environment file"
+  copy:
+    src: "{{ backend_dir }}/.env"
     dest: /etc/default/{{ backend_app_name }}
+    remote_src: yes
     owner: root
     group: root
     mode: "0644"
+  become: true
   when: app_type == 'backend' or app_type == 'both'
   tags:
     - process_management
@@ -95,12 +97,39 @@
 - name: "Process Mgmt | Build backend application"
   shell: |
     cd {{ backend_dir }}
-    mvn clean package -DskipTests -q
-    cp target/stockkeeper-*.jar {{ backend_dir }}/app.jar
+    export MAVEN_OPTS="-Xmx2048m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC"
+    mvn clean package -DskipTests
   become: true
   become_user: deploy
   when: app_type == 'backend' or app_type == 'both'
   register: build_backend
+  failed_when: build_backend.rc != 0
+  tags:
+    - process_management
+    - build
+    - backend
+
+- name: "Process Mgmt | Verify JAR was created"
+  stat:
+    path: "{{ backend_dir }}/target/stockkeeper-0.0.1-SNAPSHOT.jar"
+  register: jar_file
+  failed_when: not jar_file.stat.exists
+  when: app_type == 'backend' or app_type == 'both'
+  tags:
+    - process_management
+    - build
+    - backend
+
+- name: "Process Mgmt | Copy JAR to app directory"
+  copy:
+    src: "{{ backend_dir }}/target/stockkeeper-0.0.1-SNAPSHOT.jar"
+    dest: "{{ backend_dir }}/app.jar"
+    remote_src: yes
+    owner: deploy
+    group: deploy
+    mode: "0755"
+  become: true
+  when: app_type == 'backend' or app_type == 'both'
   tags:
     - process_management
     - build
@@ -128,6 +157,21 @@
     - process_management
     - systemd
     - backend
+
+- name: "Process Mgmt | Restart backend service after build"
+  systemd:
+    name: "{{ backend_app_name }}"
+    state: restarted
+    daemon_reload: yes
+  when:
+    - app_type == 'backend' or app_type == 'both'
+    - build_backend is defined
+    - build_backend.changed
+  tags:
+    - process_management
+    - systemd
+    - backend
+    - restart
 
 - name: Flush handlers
   meta: flush_handlers

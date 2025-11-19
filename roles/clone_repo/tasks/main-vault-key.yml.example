@@ -1,4 +1,9 @@
 ---
+# Alternative Method: Vault-Encrypted SSH Key
+# This method deploys the SSH key to the remote server from the vault.
+# Use this if you need automated deployments (CI/CD, cron) or
+# if SSH agent forwarding doesn't work in your environment.
+
 - name: "Clone Repo | Ensure .ssh directory exists"
   file:
     path: /home/deploy/.ssh
@@ -6,19 +11,17 @@
     owner: deploy
     group: deploy
     mode: "0700"
-  become: true
   tags:
     - clone_repo
     - ssh
 
 - name: "Clone Repo | Deploy SSH private key from vault"
   copy:
-    content: "{{ vault_ssh_private_key }}"
+    content: "{{ vault_deployment_ssh_key }}"
     dest: /home/deploy/.ssh/id_rsa
     owner: deploy
     group: deploy
     mode: "0600"
-  become: true
   no_log: true
   tags:
     - clone_repo
@@ -35,27 +38,6 @@
   tags:
     - clone_repo
     - ssh
-
-- name: "Clone Repo | Test SSH connection to GitHub"
-  shell: ssh -T git@github.com
-  register: github_test
-  failed_when: false
-  changed_when: false
-  become: true
-  become_user: deploy
-  tags:
-    - clone_repo
-    - ssh
-    - test
-
-- name: "Clone Repo | Display GitHub SSH test result"
-  debug:
-    msg: "{{ github_test.stderr }}"
-  when: github_test.stderr is defined
-  tags:
-    - clone_repo
-    - ssh
-    - test
 
 - name: "Clone Repo | Clone backend repository"
   git:
@@ -94,7 +76,6 @@
     group: deploy
     mode: "0755"
     recurse: true
-  become: true
   loop:
     - "{{ backend_dir }}"
     - "{{ frontend_dir }}"
@@ -102,3 +83,5 @@
   tags:
     - clone_repo
     - permissions
+
+

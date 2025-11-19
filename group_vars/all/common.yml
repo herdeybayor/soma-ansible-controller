@@ -5,15 +5,23 @@ project_name: stock-keeping
 backend_app_name: stock-keeping-backend
 frontend_app_name: stock-keeping-frontend
 
-# Repository URLs
-backend_repo: https://github.com/hngprojects/stock-keeping-app-BE.git
-frontend_repo: https://github.com/hngprojects/stock-keeping-app-fe.git
+# Repository URLs (SSH format for private repos)
+backend_repo: git@github.com:hngprojects/stock-keeping-app-BE.git
+frontend_repo: git@github.com:hngprojects/stock-keeping-app-fe.git
 
 # Application configuration
 backend_port: 5000
 frontend_port: 3000
 app_user: deploy
 app_group: deploy
+
+# Java/Backend memory configuration (defaults, can be overridden per environment)
+java_min_memory: 256
+java_max_memory: 512
+
+# PM2/Frontend configuration (defaults, can be overridden per environment)
+pm2_max_memory_restart: 512
+pm2_instances: 2
 
 # Directory structure
 app_root: /opt/{{ project_name }}

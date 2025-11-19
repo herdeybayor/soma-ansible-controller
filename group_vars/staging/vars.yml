@@ -2,7 +2,7 @@
 # Staging Environment Variables
 
 deploy_env: staging
-app_branch: develop
+app_branch: dev
 enable_debug_logs: true
 cloudwatch_enabled: true
 ssl_enabled: true
@@ -12,20 +12,24 @@ aws_region: us-east-1
 aws_cloudwatch_log_retention: 7 # 7 days for staging
 
 # Domains
-domain_name: staging.stockkeeping.example.com
-backend_domain: api-staging.stockkeeping.example.com
-frontend_domain: staging.stockkeeping.example.com
+# domain_name is dynamically calculated in playbook based on app_type
+backend_domain: api-staging.stockkeeping.sherifdeenadebayo.com
+frontend_domain: staging.stockkeeping.sherifdeenadebayo.com
 
 # Application ports
 backend_port: 5000
 frontend_port: 3000
 
 # Certbot configuration
-certbot_email: devops@staging.stockkeeping.example.com
+certbot_email: herdeybayor4real@gmail.com
 
-# PM2 configuration
+# PM2 configuration (Frontend)
 pm2_max_memory_restart: 512
 pm2_instances: 2
+
+# Java/Backend configuration
+java_min_memory: 256
+java_max_memory: 512
 
 # Database configuration
 db_max_connections: 20

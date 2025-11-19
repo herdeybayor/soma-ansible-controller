@@ -23,15 +23,22 @@
     - secrets
     - frontend
 
-- name: "Secrets | Verify environment files exist"
+- name: "Secrets | Verify backend environment file exists"
   stat:
-    path: "{{ item }}"
-  register: env_files
-  failed_when: not env_files.stat.exists
-  when: item is defined
-  loop:
-    - "{{ backend_dir }}/.env"
-    - "{{ frontend_dir }}/.env.local"
+    path: "{{ backend_dir }}/.env"
+  register: backend_env_file
+  failed_when: not backend_env_file.stat.exists
+  when: app_type == 'backend' or app_type == 'both'
+  tags:
+    - secrets
+    - verify
+
+- name: "Secrets | Verify frontend environment file exists"
+  stat:
+    path: "{{ frontend_dir }}/.env.local"
+  register: frontend_env_file
+  failed_when: not frontend_env_file.stat.exists
+  when: app_type == 'frontend' or app_type == 'both'
   tags:
     - secrets
     - verify
