@@ -1,0 +1,87 @@
+---
+# Alternative Method: Vault-Encrypted SSH Key
+# This method deploys the SSH key to the remote server from the vault.
+# Use this if you need automated deployments (CI/CD, cron) or
+# if SSH agent forwarding doesn't work in your environment.
+
+- name: "Clone Repo | Ensure .ssh directory exists"
+  file:
+    path: /home/deploy/.ssh
+    state: directory
+    owner: deploy
+    group: deploy
+    mode: "0700"
+  tags:
+    - clone_repo
+    - ssh
+
+- name: "Clone Repo | Deploy SSH private key from vault"
+  copy:
+    content: "{{ vault_deployment_ssh_key }}"
+    dest: /home/deploy/.ssh/id_rsa
+    owner: deploy
+    group: deploy
+    mode: "0600"
+  no_log: true
+  tags:
+    - clone_repo
+    - ssh
+
+- name: "Clone Repo | Configure SSH known hosts for GitHub"
+  known_hosts:
+    name: github.com
+    key: "{{ lookup('pipe', 'ssh-keyscan -H github.com') }}"
+    path: /home/deploy/.ssh/known_hosts
+    state: present
+  become: true
+  become_user: deploy
+  tags:
+    - clone_repo
+    - ssh
+
+- name: "Clone Repo | Clone backend repository"
+  git:
+    repo: "{{ backend_repo }}"
+    dest: "{{ backend_dir }}"
+    version: "{{ app_branch }}"
+    accept_hostkey: yes
+    force: yes
+    key_file: /home/deploy/.ssh/id_rsa
+  become: true
+  become_user: deploy
+  when: app_type == 'backend' or app_type == 'both'
+  tags:
+    - clone_repo
+    - backend
+
+- name: "Clone Repo | Clone frontend repository"
+  git:
+    repo: "{{ frontend_repo }}"
+    dest: "{{ frontend_dir }}"
+    version: "{{ app_branch }}"
+    accept_hostkey: yes
+    force: yes
+    key_file: /home/deploy/.ssh/id_rsa
+  become: true
+  become_user: deploy
+  when: app_type == 'frontend' or app_type == 'both'
+  tags:
+    - clone_repo
+    - frontend
+
+- name: "Clone Repo | Set repository permissions"
+  file:
+    path: "{{ item }}"
+    owner: deploy
+    group: deploy
+    mode: "0755"
+    recurse: true
+  loop:
+    - "{{ backend_dir }}"
+    - "{{ frontend_dir }}"
+  when: app_type != 'none'
+  tags:
+    - clone_repo
+    - permissions
+
+

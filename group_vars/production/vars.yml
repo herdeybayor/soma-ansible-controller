@@ -1,0 +1,40 @@
+---
+# Production Environment Variables
+
+deploy_env: production
+app_branch: main
+enable_debug_logs: false
+cloudwatch_enabled: true
+ssl_enabled: true
+
+# AWS Configuration
+aws_region: us-east-1
+aws_cloudwatch_log_retention: 30 # 30 days for production
+
+# Domains
+# domain_name is dynamically calculated in playbook based on app_type
+backend_domain: api.stockkeeping.sherifdeenadebayo.com
+frontend_domain: stockkeeping.sherifdeenadebayo.com
+
+# Application ports
+backend_port: 5000
+frontend_port: 3000
+
+# Certbot configuration
+certbot_email: herdeybayor4real@gmail.com
+
+# PM2 configuration (Frontend)
+pm2_max_memory_restart: 1024
+pm2_instances: 4
+
+# Java/Backend configuration
+java_min_memory: 512
+java_max_memory: 1024
+
+# Database configuration
+db_max_connections: 50
+db_pool_size: 25
+
+# Nginx configuration
+nginx_worker_processes: auto
+nginx_worker_connections: 2048

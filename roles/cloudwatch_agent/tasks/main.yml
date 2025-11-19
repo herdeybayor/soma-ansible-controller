@@ -1,0 +1,89 @@
+---
+- name: "CloudWatch | Create CloudWatch config directory"
+  file:
+    path: /opt/aws/amazon-cloudwatch-agent/etc
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags:
+    - cloudwatch
+    - agent
+
+- name: "CloudWatch | Generate CloudWatch Agent configuration"
+  template:
+    src: amazon-cloudwatch-agent-config.j2
+    dest: /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart cloudwatch agent
+  tags:
+    - cloudwatch
+    - agent
+    - config
+
+- name: "CloudWatch | Create log groups"
+  shell: |
+    aws logs create-log-group \
+      --log-group-name "/ec2/{{ deploy_env }}/{{ project_name }}/{{ app_type }}" \
+      --region {{ aws_region }} \
+      2>/dev/null || true
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key_id }}"
+    AWS_SECRET_ACCESS_KEY: "{{ vault_aws_secret_access_key }}"
+  tags:
+    - cloudwatch
+    - logs
+
+- name: "CloudWatch | Set log retention policy"
+  shell: |
+    aws logs put-retention-policy \
+      --log-group-name "/ec2/{{ deploy_env }}/{{ project_name }}/{{ app_type }}" \
+      --retention-in-days {{ aws_cloudwatch_log_retention }} \
+      --region {{ aws_region }}
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key_id }}"
+    AWS_SECRET_ACCESS_KEY: "{{ vault_aws_secret_access_key }}"
+  tags:
+    - cloudwatch
+    - logs
+
+- name: "CloudWatch | Enable and start CloudWatch Agent"
+  shell: |
+    /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+      -a fetch-config \
+      -m ec2 \
+      -s \
+      -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+      --region {{ aws_region }}
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key_id }}"
+    AWS_SECRET_ACCESS_KEY: "{{ vault_aws_secret_access_key }}"
+  tags:
+    - cloudwatch
+    - agent
+    - start
+
+- name: "CloudWatch | Verify logs are streaming"
+  shell: |
+    aws logs describe-log-streams \
+      --log-group-name "/ec2/{{ deploy_env }}/{{ project_name }}/{{ app_type }}" \
+      --region {{ aws_region }} \
+      --query 'logStreams[0].logStreamName' \
+      --output text
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key_id }}"
+    AWS_SECRET_ACCESS_KEY: "{{ vault_aws_secret_access_key }}"
+  register: log_stream_check
+  retries: 5
+  delay: 10
+  until: log_stream_check.stdout | length > 0
+  tags:
+    - cloudwatch
+    - verify
+
+- name: Flush handlers
+  meta: flush_handlers
+  tags:
+    - cloudwatch

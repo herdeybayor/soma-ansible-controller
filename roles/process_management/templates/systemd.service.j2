@@ -1,0 +1,21 @@
+[Unit]
+Description={{ backend_app_name }} Application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory={{ backend_dir }}
+EnvironmentFile=/etc/default/{{ backend_app_name }}
+ExecStart=/usr/bin/java -Xms{{ java_min_memory }}m -Xmx{{ java_max_memory }}m -jar app.jar
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+RestartSec=5s
+StandardOutput=append:{{ logs_dir }}/{{ backend_app_name }}-out.log
+StandardError=append:{{ logs_dir }}/{{ backend_app_name }}-error.log
+
+[Install]
+WantedBy=multi-user.target

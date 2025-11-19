@@ -1,0 +1,26 @@
+module.exports = {
+  apps: [
+    {
+      name: "{{ frontend_app_name }}",
+      script: "/home/deploy/.nvm/versions/node/v20.*/bin/next",
+      args: "start",
+      cwd: "{{ frontend_dir }}",
+      instances: {{ pm2_instances | default(2) }},
+      exec_mode: "cluster",
+      env: {
+        NODE_ENV: "production",
+        PORT: "{{ frontend_port }}",
+      },
+      error_file: "{{ logs_dir }}/{{ frontend_app_name }}-error.log",
+      out_file: "{{ logs_dir }}/{{ frontend_app_name }}-out.log",
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+      merge_logs: true,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "{{ pm2_max_memory_restart }}M",
+      env_{{ deploy_env }}: {
+        NODE_ENV: "production",
+      },
+    },
+  ],
+};

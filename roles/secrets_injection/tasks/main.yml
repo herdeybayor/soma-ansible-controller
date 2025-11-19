@@ -1,0 +1,56 @@
+---
+- name: "Secrets | Copy environment file to backend"
+  copy:
+    src: "{{ vault_secrets_path }}/{{ deploy_env }}-backend.env"
+    dest: "{{ backend_dir }}/.env"
+    owner: deploy
+    group: deploy
+    mode: "0600"
+  when: app_type == 'backend' or app_type == 'both'
+  tags:
+    - secrets
+    - backend
+
+- name: "Secrets | Copy environment file to frontend"
+  copy:
+    src: "{{ vault_secrets_path }}/{{ deploy_env }}-frontend.env"
+    dest: "{{ frontend_dir }}/.env.local"
+    owner: deploy
+    group: deploy
+    mode: "0600"
+  when: app_type == 'frontend' or app_type == 'both'
+  tags:
+    - secrets
+    - frontend
+
+- name: "Secrets | Verify backend environment file exists"
+  stat:
+    path: "{{ backend_dir }}/.env"
+  register: backend_env_file
+  failed_when: not backend_env_file.stat.exists
+  when: app_type == 'backend' or app_type == 'both'
+  tags:
+    - secrets
+    - verify
+
+- name: "Secrets | Verify frontend environment file exists"
+  stat:
+    path: "{{ frontend_dir }}/.env.local"
+  register: frontend_env_file
+  failed_when: not frontend_env_file.stat.exists
+  when: app_type == 'frontend' or app_type == 'both'
+  tags:
+    - secrets
+    - verify
+
+- name: "Secrets | Create logs directory for backend"
+  file:
+    path: "{{ backend_dir }}/logs"
+    state: directory
+    owner: deploy
+    group: deploy
+    mode: "0755"
+  when: app_type == 'backend' or app_type == 'both'
+  tags:
+    - secrets
+    - logging

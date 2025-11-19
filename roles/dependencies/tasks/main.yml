@@ -1,0 +1,147 @@
+---
+- name: "Dependencies | Update system package cache"
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: "Dependencies | Upgrade all packages"
+  apt:
+    upgrade: dist
+  register: upgrade_result
+
+- name: "Dependencies | Install common packages"
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - git
+    - curl
+    - wget
+    - htop
+    - nano
+    - vim
+    - nginx
+    - certbot
+    - python3-pip
+    - python3-venv
+    - supervisor
+    - ntp
+    - unzip
+    - jq
+  tags:
+    - dependencies
+    - packages
+
+- name: "Dependencies | Install AWS CLI v2"
+  shell: |
+    cd /tmp
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip -o awscliv2.zip
+    ./aws/install --update
+    rm -rf awscliv2.zip aws/
+  args:
+    creates: /usr/local/bin/aws
+  when: cloudwatch_enabled | default(false)
+  tags:
+    - dependencies
+    - awscli
+    - cloudwatch
+
+- name: "Dependencies | Install AWS CloudWatch Agent"
+  shell: |
+    wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
+    dpkg -i -E ./amazon-cloudwatch-agent.deb
+    rm amazon-cloudwatch-agent.deb
+  args:
+    creates: /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent
+  tags:
+    - dependencies
+    - cloudwatch
+
+- name: "Dependencies | Install Node.js (Frontend)"
+  block:
+    - name: "Dependencies | Add Node.js repository"
+      shell: |
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+
+    - name: "Dependencies | Install Node.js and npm"
+      apt:
+        name:
+          - nodejs
+          - npm
+        state: present
+
+    - name: "Dependencies | Install PM2 globally"
+      npm:
+        name: pm2
+        global: yes
+        state: present
+  when: app_type == 'frontend' or app_type == 'both'
+  tags:
+    - dependencies
+    - nodejs
+
+- name: "Dependencies | Install Java (Backend)"
+  block:
+    - name: "Dependencies | Install OpenJDK 21"
+      apt:
+        name: openjdk-21-jdk
+        state: present
+
+    - name: "Dependencies | Install Maven"
+      apt:
+        name: maven
+        state: present
+  when: app_type == 'backend' or app_type == 'both'
+  tags:
+    - dependencies
+    - java
+
+- name: "Dependencies | Create deploy user"
+  user:
+    name: deploy
+    shell: /bin/bash
+    createhome: yes
+    home: /home/deploy
+    state: present
+  tags:
+    - dependencies
+    - users
+
+- name: "Dependencies | Grant sudo privileges to deploy user"
+  lineinfile:
+    path: /etc/sudoers.d/deploy
+    line: "deploy ALL=(ALL) NOPASSWD: ALL"
+    create: yes
+    mode: "0440"
+  tags:
+    - dependencies
+    - users
+
+- name: "Dependencies | Create application directories"
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: deploy
+    group: deploy
+    mode: "0755"
+  loop:
+    - "{{ app_root }}"
+    - "{{ backend_dir }}"
+    - "{{ frontend_dir }}"
+    - "{{ logs_dir }}"
+    - /home/deploy/.ssh
+  tags:
+    - dependencies
+    - directories
+
+- name: "Dependencies | Configure SSH for git access"
+  file:
+    path: /home/deploy/.ssh
+    owner: deploy
+    group: deploy
+    mode: "0700"
+    state: directory
+  tags:
+    - dependencies
+    - ssh
